@@ -86,3 +86,63 @@ function initializeSheet(sheet) {
   sheet.getRange(1, 1).setValue('Time');
   sheet.getRange(1, 2).setValue('Thread Count');
 }
+
+const LABELS_TO_SEARCH = [
+ // Add your label names here!
+];
+
+function labelSearcherMain() {
+  for (const label of LABELS_TO_SEARCH) {
+    const labelObject = GmailApp.getUserLabelByName(label);
+    for (const thread of GmailApp.search(
+      `subject:("Label update") AND subject:(${label}) AND from:${Session.getActiveUser().getEmail()}`)) {
+        if (thread.getMessageCount() !== 1) continue;
+        thread.removeLabel(labelObject);
+        thread.moveToArchive();
+    }
+    labelSearcher(label);
+  }
+}
+
+function labelSearcher(labelName) {
+  const label = GmailApp.getUserLabelByName(labelName);
+  if (!label) {
+    return;
+  }
+  const url = `https://mail.google.com/mail/u/0/#label/${encodeURIComponent(labelName)}`;
+  const lines = [
+    `<h1>${labelName} Digest <a href="${url}">[link]</a></h1>`
+  ];
+  const threads = label.getThreads();
+  if (threads.length === 0) {
+    return;
+  }
+  const messagesAndAuthors = [];
+  const authors = new Set();
+  for (const thread of threads) {
+    const message = thread.getMessages()[0];
+    const author = getFromName(message).trim();
+    authors.add(author);
+    messagesAndAuthors.push([author, message.getDate(), message])
+  }
+  const authorsOrder = Array.from(authors);
+  messagesAndAuthors.sort((a, b) => {
+    if (a[0] !== b[0]) {
+      return authorsOrder.indexOf(a[0]) - authorsOrder.indexOf(b[0]);
+    }
+    return a[1] < b[1] ? 1 : -1;
+  });
+  for (const [author, /* date */, message] of messagesAndAuthors) {
+    lines.push(`<p><strong><pre style="display: inline">${author}</pre></strong>: ${message.getSubject()}`);
+  }
+  const subject = `[Label update]: ${threads.length} in ${labelName}`;
+  GmailApp.sendEmail(
+    Session.getActiveUser().getEmail(),
+    subject,
+    "Label update", {
+      htmlBody: lines.join(""),
+    }
+  );
+  const emailThatWasJustSent = GmailApp.search(`subject: (${subject})`)[0];
+  emailThatWasJustSent.addLabel(label);
+}
