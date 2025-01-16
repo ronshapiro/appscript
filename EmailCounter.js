@@ -145,4 +145,5 @@ function labelSearcher(labelName) {
   );
   const emailThatWasJustSent = GmailApp.search(`subject: (${subject})`)[0];
   emailThatWasJustSent.addLabel(label);
+  emailThatWasJustSent.moveToInbox(); // Even if a filter thought this should be archived... unarchive.
 }
